@@ -1,0 +1,45 @@
+{
+  "name": "@anyagent/mcp-server",
+  "version": "0.1.0",
+  "description": "AnyAgent MCP Server - integrates with Claude Code / Codex / Cursor",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "bin": {
+    "anyagent-mcp": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/index.ts",
+    "start": "node dist/index.js",
+    "prepublishOnly": "npm run build"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/anyagent/anyagent.git",
+    "directory": "mcp-server"
+  },
+  "keywords": [
+    "mcp",
+    "claude",
+    "codex",
+    "cursor",
+    "agent",
+    "ai",
+    "coding"
+  ],
+  "author": "AnyAgent",
+  "license": "MIT",
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "tsx": "^4.0.0",
+    "@types/node": "^20.0.0"
+  }
+}

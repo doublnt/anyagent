@@ -1,0 +1,42 @@
+version: "3.8"
+
+services:
+  postgres:
+    image: pgvector/pgvector:pg16
+    container_name: anyagent-postgres
+    environment:
+      POSTGRES_USER: anyagent
+      POSTGRES_PASSWORD: anyagent-dev
+      POSTGRES_DB: anyagent
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ../backend/migrations:/docker-entrypoint-initdb.d
+
+  redis:
+    image: redis:7-alpine
+    container_name: anyagent-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  backend:
+    build:
+      context: ../backend
+      dockerfile: ../infra/Dockerfile.backend
+    container_name: anyagent-backend
+    environment:
+      PORT: "8080"
+      DATABASE_URL: "postgres://anyagent:anyagent-dev@postgres:5432/anyagent?sslmode=disable"
+      REDIS_URL: "redis://redis:6379"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - postgres
+      - redis
+
+volumes:
+  postgres_data:
+  redis_data:

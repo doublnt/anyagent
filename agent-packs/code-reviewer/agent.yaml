@@ -1,0 +1,26 @@
+name: code-reviewer
+version: 0.1.0
+description: Automated code review with best practices
+author: AnyAgent
+category: coding
+tags:
+  - review
+  - quality
+  - best-practices
+
+prompts:
+  - name: review
+    path: prompts/review.md
+
+tools:
+  - name: git_diff
+    description: Get git diff for review
+  - name: read_file
+    description: Read file contents
+  - name: list_files
+    description: List project files
+
+eval:
+  - name: has_comments
+    description: Check if review includes actionable comments
+    path: eval/has_comments.yaml

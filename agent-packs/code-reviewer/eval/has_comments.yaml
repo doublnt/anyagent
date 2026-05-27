@@ -1,0 +1,9 @@
+name: has_comments
+description: Check if review includes actionable comments
+type: content_check
+config:
+  min_comments: 1
+  check_sections:
+    - "Critical Issues"
+    - "Warnings"
+    - "Suggestions"
