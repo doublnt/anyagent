@@ -41,12 +41,44 @@ func main() {
 	// Auth routes (protected)
 	mux.Handle("GET /api/v1/auth/me", middleware.Auth(http.HandlerFunc(handler.GetCurrentUser)))
 
-	// Agent Registry (public read, protected write)
+	// Agent Registry (public read, protected publish with scope=manage)
 	mux.HandleFunc("GET /api/v1/agents", handler.ListAgents)
 	mux.HandleFunc("GET /api/v1/agents/{name}", handler.GetAgent)
 	mux.HandleFunc("GET /api/v1/agents/{name}/versions", handler.ListAgentVersions)
-	mux.Handle("POST /api/v1/agents", middleware.Auth(http.HandlerFunc(handler.PublishAgent)))
+	mux.Handle("POST /api/v1/agents",
+		middleware.Chain(
+			middleware.Auth(http.HandlerFunc(handler.PublishAgent)),
+			middleware.RequireScope("manage"),
+		))
 	mux.HandleFunc("GET /api/v1/agents/{name}/{version}/download", handler.DownloadAgent)
+
+	// Hosted agent execution (internal, Use scope)
+	mux.Handle("POST /api/v1/agents/{name}/run",
+		middleware.Chain(
+			middleware.Auth(http.HandlerFunc(handler.RunAgent)),
+			middleware.RequireScope("use"),
+		))
+
+	// Entitlements / subscriptions
+	mux.HandleFunc("GET /api/v1/entitlements/check", handler.CheckEntitlement)
+	mux.Handle("POST /api/v1/entitlements",
+		middleware.Chain(
+			middleware.Auth(http.HandlerFunc(handler.Subscribe)),
+			middleware.RequireScope("read"),
+		))
+	mux.Handle("POST /api/v1/entitlements/{id}/token",
+		middleware.Chain(
+			middleware.Auth(http.HandlerFunc(handler.MintToken)),
+			middleware.RequireScope("use"),
+		))
+
+	// Usage metering
+	mux.Handle("POST /api/v1/usage",
+		middleware.Auth(http.HandlerFunc(handler.RecordUsage)))
+
+	// Subscription view (replaces stub)
+	mux.HandleFunc("GET /api/v1/subscription", handler.GetSubscription)
+	mux.HandleFunc("GET /api/v1/license/verify", handler.VerifyLicense)
 
 	// Projects (protected)
 	mux.Handle("GET /api/v1/projects", middleware.Auth(http.HandlerFunc(handler.ListProjects)))
@@ -64,10 +96,6 @@ func main() {
 	mux.Handle("GET /api/v1/traces/{id}", middleware.Auth(http.HandlerFunc(handler.GetTrace)))
 	mux.Handle("POST /api/v1/traces/{id}/spans", middleware.Auth(http.HandlerFunc(handler.AddTraceSpan)))
 	mux.Handle("POST /api/v1/traces/{id}/complete", middleware.Auth(http.HandlerFunc(handler.CompleteTrace)))
-
-	// License (public)
-	mux.HandleFunc("GET /api/v1/subscription", handler.GetSubscription)
-	mux.HandleFunc("GET /api/v1/license/verify", handler.VerifyLicense)
 
 	// Apply global middleware
 	h := middleware.Chain(mux, middleware.Logger, middleware.CORS, middleware.Recovery)

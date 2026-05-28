@@ -14,3 +14,4 @@ pub mod memory;
 pub mod trace;
 pub mod eval;
 pub mod config;
+pub mod publish;

@@ -76,6 +76,8 @@ export interface AgentInfo {
   tags: string[];
   author: string;
   download_count: number;
+  is_hosted?: boolean;
+  price_cents?: number;
 }
 
 export async function listAgents(query?: string, category?: string) {
@@ -171,15 +173,53 @@ export async function getTrace(traceId: string) {
   );
 }
 
-// Subscription
+// Subscription / Marketplace
 export interface Subscription {
   plan: string;
   status: string;
-  max_projects: number;
-  max_traces_per_day: number;
-  max_memory_mb: number;
+  entitlements: EntitlementInfo[];
 }
 
 export async function getSubscription() {
   return request<Subscription>("/api/v1/subscription");
+}
+
+// Marketplace: entitlement + subscription
+export interface EntitlementInfo {
+  id: string;
+  agent_id: string;
+  status: string;
+  period_start: string;
+  period_end: string;
+  quota_calls: number;
+  quota_tokens: number;
+  used_calls: number;
+  used_tokens: number;
+}
+
+export async function subscribeToAgent(agentId: string, periodDays = 30) {
+  return request<EntitlementInfo>("/api/v1/entitlements", {
+    method: "POST",
+    body: JSON.stringify({ agent_id: agentId, period_days: periodDays }),
+  });
+}
+
+export async function checkEntitlement(agentId: string, entitlementId?: string) {
+  const params = new URLSearchParams({ agent_id: agentId });
+  if (entitlementId) params.set("entitlement_id", entitlementId);
+  return request<{
+    allowed: boolean;
+    entitlement_id: string;
+    used_calls: number;
+    quota_calls: number;
+    used_tokens: number;
+    quota_tokens: number;
+  }>(`/api/v1/entitlements/check?${params}`);
+}
+
+export async function mintEntitlementToken(entitlementId: string) {
+  return request<{ token: string; entitlement_id: string; agent_id: string; expires_in: string }>(
+    `/api/v1/entitlements/${entitlementId}/token`,
+    { method: "POST" }
+  );
 }

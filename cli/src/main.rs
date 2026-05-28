@@ -40,6 +40,9 @@ enum Commands {
     /// Install an agent pack
     Install(commands::install::InstallArgs),
 
+    /// Publish an agent pack to the marketplace
+    Publish(commands::publish::PublishArgs),
+
     /// Uninstall an agent pack
     Uninstall(commands::uninstall::UninstallArgs),
 
@@ -91,6 +94,7 @@ async fn main() {
         Commands::Status => commands::status::run().await,
         Commands::Search(args) => commands::search::run(args).await,
         Commands::Install(args) => commands::install::run(args).await,
+        Commands::Publish(args) => commands::publish::run(args).await,
         Commands::Uninstall(args) => commands::uninstall::run(args).await,
         Commands::List => commands::list::run().await,
         Commands::Update(args) => commands::update::run(args).await,

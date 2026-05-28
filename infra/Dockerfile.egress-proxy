@@ -1,0 +1,16 @@
+# Minimal egress proxy (Harpoon) — the forward-only HTTP proxy that sandboxes use for LLM calls.
+FROM golang:1.26-alpine AS builder
+
+WORKDIR /build
+
+# Copy the egress proxy package (paths relative to backend/ build context)
+COPY internal/sandbox/egress_proxy.go ./internal/sandbox/
+COPY cmd/egress-proxy/main.go ./cmd/egress-proxy/
+COPY go.mod go.sum ./
+
+RUN CGO_ENABLED=0 GOOS=linux go build -ldflags="-s -w" -o /egress-proxy ./cmd/egress-proxy
+
+FROM scratch
+COPY --from=builder /egress-proxy /egress-proxy
+EXPOSE 8081
+ENTRYPOINT ["/egress-proxy"]

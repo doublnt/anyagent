@@ -14,6 +14,9 @@ import (
 type contextKey string
 
 const UserIDKey contextKey = "user_id"
+const ScopesKey contextKey = "scopes"
+const EntitlementIDKey contextKey = "entitlement_id"
+const AgentIDKey contextKey = "agent_id"
 
 var jwtSecret []byte
 
@@ -74,7 +77,7 @@ func Recovery(next http.Handler) http.Handler {
 	})
 }
 
-// Auth validates JWT bearer token and sets user_id in context
+// Auth validates JWT bearer token and sets user_id and scopes in context.
 func Auth(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		authHeader := r.Header.Get("Authorization")
@@ -110,8 +113,57 @@ func Auth(next http.Handler) http.Handler {
 		}
 
 		ctx := context.WithValue(r.Context(), UserIDKey, userID)
+
+		// Extract scopes if present
+		if scopesRaw, ok := claims["scopes"].([]interface{}); ok {
+			var scopes []string
+			for _, s := range scopesRaw {
+				if ss, ok := s.(string); ok {
+					scopes = append(scopes, ss)
+				}
+			}
+			ctx = context.WithValue(ctx, ScopesKey, scopes)
+		}
+
+		// Extract agent_id if present (for entitlement tokens)
+		if agentID, ok := claims["agent_id"].(string); ok {
+			ctx = context.WithValue(ctx, AgentIDKey, agentID)
+		}
+		// Extract entitlement_id if present
+		if eid, ok := claims["entitlement_id"].(string); ok {
+			ctx = context.WithValue(ctx, EntitlementIDKey, eid)
+		}
+
 		next.ServeHTTP(w, r.WithContext(ctx))
 	})
+}
+
+// RequireScope returns a middleware that enforces the given scope.
+// A valid token must contain the required scope in its "scopes" claim.
+// Read = browse/store, Use = call hosted agent, Manage = publish/edit agents.
+func RequireScope(required string) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := r.Context()
+			scopesVal := ctx.Value(ScopesKey)
+			if scopesVal == nil {
+				http.Error(w, `{"error":"insufficient permissions: no scope claim"}`, http.StatusForbidden)
+				return
+			}
+			scopes, ok := scopesVal.([]string)
+			if !ok {
+				http.Error(w, `{"error":"insufficient permissions: invalid scope claim"}`, http.StatusForbidden)
+				return
+			}
+			for _, s := range scopes {
+				if s == required {
+					next.ServeHTTP(w, r)
+					return
+				}
+			}
+			http.Error(w, `{"error":"insufficient permissions: missing `+required+` scope"}`, http.StatusForbidden)
+		})
+	}
 }
 
 // GetUserID extracts user_id from context
@@ -122,12 +174,54 @@ func GetUserID(ctx context.Context) string {
 	return ""
 }
 
-// GenerateToken creates a JWT token for a user
-func GenerateToken(userID string) (string, error) {
+// GetScopes extracts scopes from context
+func GetScopes(ctx context.Context) []string {
+	if v, ok := ctx.Value(ScopesKey).([]string); ok {
+		return v
+	}
+	return nil
+}
+
+// GetEntitlementID extracts entitlement_id from context
+func GetEntitlementID(ctx context.Context) string {
+	if v, ok := ctx.Value(EntitlementIDKey).(string); ok {
+		return v
+	}
+	return ""
+}
+
+// GetAgentID extracts agent_id from context
+func GetAgentID(ctx context.Context) string {
+	if v, ok := ctx.Value(AgentIDKey).(string); ok {
+		return v
+	}
+	return ""
+}
+
+// GenerateToken creates a JWT token for a user with optional scopes.
+// scopes: "read" (browse), "use" (call hosted agent), "manage" (publish/edit).
+func GenerateToken(userID string, scopes ...string) (string, error) {
 	claims := jwt.MapClaims{
-		"sub": userID,
-		"iat": time.Now().Unix(),
-		"exp": time.Now().Add(30 * 24 * time.Hour).Unix(), // 30 days
+		"sub":    userID,
+		"iat":    time.Now().Unix(),
+		"exp":    time.Now().Add(30 * 24 * time.Hour).Unix(), // 30 days
+		"scopes": scopes,
+	}
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+	return token.SignedString(getJWTSecret())
+}
+
+// GenerateEntitlementToken creates a short-lived token scoped to a specific entitlement.
+// It carries scope=use, the entitlement_id, and the agent_id so the MCP gateway
+// can validate it without a DB round-trip.
+func GenerateEntitlementToken(buyerUserID, entitlementID, agentID string) (string, error) {
+	claims := jwt.MapClaims{
+		"sub":           buyerUserID,
+		"entitlement_id": entitlementID,
+		"agent_id":      agentID,
+		"iat":           time.Now().Unix(),
+		"exp":           time.Now().Add(24 * time.Hour).Unix(), // 24h; gateway re-checks quota each call
+		"scopes":        []string{"use"},
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString(getJWTSecret())

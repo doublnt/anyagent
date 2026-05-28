@@ -24,18 +24,30 @@ services:
 
   backend:
     build:
-      context: ../backend
-      dockerfile: ../infra/Dockerfile.backend
+      context: ..
+      dockerfile: infra/Dockerfile.backend
     container_name: anyagent-backend
     environment:
       PORT: "8080"
       DATABASE_URL: "postgres://anyagent:anyagent-dev@postgres:5432/anyagent?sslmode=disable"
       REDIS_URL: "redis://redis:6379"
+      SANDBOX_IMAGE: "anyagent/agent-runner:latest"
+      EGRESS_PROXY_URL: "http://egress-proxy:8081"
     ports:
       - "8080:8080"
     depends_on:
       - postgres
       - redis
+
+  egress-proxy:
+    build:
+      context: ../backend
+      dockerfile: ../infra/Dockerfile.egress-proxy
+    container_name: anyagent-egress-proxy
+    ports:
+      - "8081:8081"
+    profiles:
+      - sandbox
 
 volumes:
   postgres_data:
